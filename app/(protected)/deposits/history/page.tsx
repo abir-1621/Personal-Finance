@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, Pencil, PiggyBank, Trash2, X } from "lucide-react";
+import { Check, ExternalLink, ImageIcon, Pencil, PiggyBank, Trash2, X } from "lucide-react";
 import { deleteDepositAction, setDepositStatusAction } from "@/app/actions/deposits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DataTable } from "@/components/data-table";
@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { getSettings, listDeposits, listMembers } from "@/lib/data";
 import { formatCurrency, formatDate, formatMonth } from "@/lib/format";
+import { getReceiptUrlMap } from "@/lib/receipts";
 import { requireUser } from "@/lib/auth";
 import type { Deposit } from "@/lib/types";
 import { monthNow } from "@/lib/utils";
@@ -28,6 +29,7 @@ export default async function DepositHistoryPage({ searchParams }: HistoryPagePr
     memberId: profile.role === "ADMIN" && memberId ? memberId : undefined
   };
   const deposits = await listDeposits(supabase, filters);
+  const receiptUrls = await getReceiptUrlMap(supabase, deposits);
   const nameForMember = (id: string) => members.find((member) => member.id === id)?.full_name ?? (id === profile.id ? profile.full_name : "Friend");
   const returnTo = `/deposits/history${queryString({ month, member: profile.role === "ADMIN" ? memberId : "" })}`;
 
@@ -76,6 +78,7 @@ export default async function DepositHistoryPage({ searchParams }: HistoryPagePr
           nameForMember={nameForMember}
           isAdmin={profile.role === "ADMIN"}
           returnTo={returnTo}
+          receiptUrls={receiptUrls}
         />
       ) : (
         <EmptyState icon={PiggyBank} title="No deposits found" description="Try another filter or add a new deposit." />
@@ -89,13 +92,15 @@ function DepositsHistoryTable({
   currency,
   nameForMember,
   isAdmin,
-  returnTo
+  returnTo,
+  receiptUrls
 }: {
   deposits: Deposit[];
   currency: string;
   nameForMember: (id: string) => string;
   isAdmin: boolean;
   returnTo: string;
+  receiptUrls: Map<string, string | null>;
 }) {
   return (
     <DataTable>
@@ -109,6 +114,7 @@ function DepositsHistoryTable({
             <th className="px-4 py-3">Share price</th>
             <th className="px-4 py-3">Amount</th>
             <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Receipt</th>
             <th className="px-4 py-3">Note</th>
             {isAdmin ? <th className="px-4 py-3">Actions</th> : null}
           </tr>
@@ -124,6 +130,9 @@ function DepositsHistoryTable({
               <td className="px-4 py-3 text-slate-600">{formatCurrency(deposit.amount, currency)}</td>
               <td className="px-4 py-3">
                 <StatusBadge status={deposit.status} />
+              </td>
+              <td className="px-4 py-3">
+                <ReceiptLink url={receiptUrls.get(deposit.id) ?? null} />
               </td>
               <td className="max-w-xs px-4 py-3 text-slate-600">{deposit.note || "-"}</td>
               {isAdmin ? (
@@ -149,6 +158,19 @@ function DepositsHistoryTable({
         </tbody>
       </table>
     </DataTable>
+  );
+}
+
+function ReceiptLink({ url }: { url: string | null }) {
+  if (!url) {
+    return <span className="text-slate-400">-</span>;
+  }
+
+  return (
+    <a className="btn-secondary min-h-8 px-2 py-1" href={url} target="_blank" rel="noreferrer" title="Open receipt">
+      <ImageIcon className="h-4 w-4" aria-hidden="true" />
+      <ExternalLink className="h-3 w-3" aria-hidden="true" />
+    </a>
   );
 }
 

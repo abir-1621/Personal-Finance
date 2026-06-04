@@ -32,6 +32,7 @@ export type Deposit = {
   amount: number;
   status: DepositStatus;
   note: string | null;
+  receipt_path: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;

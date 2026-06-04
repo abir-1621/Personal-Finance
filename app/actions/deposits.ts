@@ -2,10 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit";
 import { getDepositById, getSettings, normalizeDeposit, normalizeProfile } from "@/lib/data";
 import { actionError, textValue } from "@/lib/form";
+import { MAX_RECEIPT_BYTES, RECEIPT_BUCKET } from "@/lib/receipts";
 import { requireAdmin, requireUser } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import type { ActionState, DepositStatus, Profile } from "@/lib/types";
@@ -56,7 +58,11 @@ export async function createDepositAction(
 
     const settings = await getSettings(admin);
     const amount = member.assigned_shares * settings.share_price;
+    const depositId = randomUUID();
+    const receiptFile = receiptFileValue(formData);
+    const receiptPath = receiptFile ? await uploadReceipt(admin, receiptFile, member.id, depositId) : null;
     const payload = {
+      id: depositId,
       member_id: member.id,
       deposit_month: values.deposit_month,
       deposit_date: values.deposit_date,
@@ -65,6 +71,7 @@ export async function createDepositAction(
       amount,
       status: "PENDING" as DepositStatus,
       note: values.note ?? null,
+      receipt_path: receiptPath,
       created_by: actor.id,
       updated_by: actor.id
     };
@@ -72,6 +79,9 @@ export async function createDepositAction(
     const { data, error } = await admin.from("deposits").insert(payload).select().single();
 
     if (error || !data) {
+      if (receiptPath) {
+        await deleteReceipt(admin, receiptPath);
+      }
       return { error: error?.message ?? "Unable to create deposit." };
     }
 
@@ -125,6 +135,10 @@ export async function updateDepositAction(
     const shareCountSnapshot = memberChanged ? member.assigned_shares : oldDeposit.share_count_snapshot;
     const sharePriceSnapshot = memberChanged ? settings.share_price : oldDeposit.share_price_snapshot;
     const amount = shareCountSnapshot * sharePriceSnapshot;
+    const receiptFile = receiptFileValue(formData);
+    const removeReceipt = textValue(formData, "remove_receipt") === "on";
+    const newReceiptPath = receiptFile ? await uploadReceipt(admin, receiptFile, member.id, values.id) : null;
+    const receiptPath = newReceiptPath ?? (removeReceipt ? null : oldDeposit.receipt_path);
 
     const updatePayload = {
       member_id: member.id,
@@ -135,6 +149,7 @@ export async function updateDepositAction(
       amount,
       status: values.status,
       note: values.note ?? null,
+      receipt_path: receiptPath,
       updated_by: actor.id,
       updated_at: new Date().toISOString()
     };
@@ -147,10 +162,17 @@ export async function updateDepositAction(
       .single();
 
     if (error || !data) {
+      if (newReceiptPath) {
+        await deleteReceipt(admin, newReceiptPath);
+      }
       return { error: error?.message ?? "Unable to update deposit." };
     }
 
     const updatedDeposit = normalizeDeposit(data as Record<string, unknown>);
+
+    if ((newReceiptPath || removeReceipt) && oldDeposit.receipt_path) {
+      await deleteReceipt(admin, oldDeposit.receipt_path);
+    }
 
     await writeAuditLog({
       action: "UPDATE_DEPOSIT",
@@ -238,6 +260,10 @@ export async function deleteDepositAction(formData: FormData) {
       throw new Error(error.message);
     }
 
+    if (oldDeposit.receipt_path) {
+      await deleteReceipt(admin, oldDeposit.receipt_path);
+    }
+
     await writeAuditLog({
       action: "DELETE_DEPOSIT",
       tableName: "deposits",
@@ -274,4 +300,51 @@ function statusValue(formData: FormData): DepositStatus {
   }
 
   return "PENDING";
+}
+
+function receiptFileValue(formData: FormData) {
+  const value = formData.get("receipt");
+
+  if (!(value instanceof File) || value.size === 0) {
+    return null;
+  }
+
+  return value;
+}
+
+async function uploadReceipt(
+  admin: ReturnType<typeof createServiceRoleClient>,
+  file: File,
+  memberId: string,
+  depositId: string
+) {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    throw new Error("Receipt must be a JPEG, PNG, or WebP image.");
+  }
+
+  if (file.size > MAX_RECEIPT_BYTES) {
+    throw new Error("Receipt image is too large. Use an image under 6 MB.");
+  }
+
+  const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+  const path = `${memberId}/${depositId}-${Date.now()}.${extension}`;
+  const { error } = await admin.storage.from(RECEIPT_BUCKET).upload(path, await file.arrayBuffer(), {
+    contentType: file.type,
+    cacheControl: "31536000",
+    upsert: false
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return path;
+}
+
+async function deleteReceipt(admin: ReturnType<typeof createServiceRoleClient>, path: string) {
+  const { error } = await admin.storage.from(RECEIPT_BUCKET).remove([path]);
+
+  if (error) {
+    console.warn(`Unable to delete receipt ${path}: ${error.message}`);
+  }
 }

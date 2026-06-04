@@ -99,7 +99,8 @@ The service role key is used only in server actions and scripts. It is not impor
 - Old deposits are not recalculated when settings change.
 - Admin can add, edit, approve, reject, and delete deposits.
 - Audit logs record member, deposit, and settings changes.
+- Optional receipt images are stored in a private Supabase Storage bucket.
 
-## Future Receipt Uploads
+## Receipt Uploads
 
-Receipt image uploads are intentionally not built in v1. The clean extension point is to add a nullable `receipt_path` column to `deposits`, create a private Supabase Storage bucket, and attach upload/delete actions beside the existing deposit actions.
+Receipts are stored in the private `deposit-receipts` Supabase Storage bucket. The database keeps only `deposits.receipt_path`. The form optimizes large images in the browser before upload so receipt files are smaller while remaining readable.

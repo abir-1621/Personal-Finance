@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, Pencil, PiggyBank, Trash2, X } from "lucide-react";
+import { Check, ExternalLink, ImageIcon, Pencil, PiggyBank, Trash2, X } from "lucide-react";
 import { deleteDepositAction, setDepositStatusAction } from "@/app/actions/deposits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DataTable } from "@/components/data-table";
@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { getDepositById, getSettings, listAuditLogs, listDeposits, listMembers } from "@/lib/data";
 import { formatCurrency, formatDate, formatMonth } from "@/lib/format";
+import { getReceiptUrl, getReceiptUrlMap } from "@/lib/receipts";
 import { requireAdmin } from "@/lib/auth";
 import type { Deposit } from "@/lib/types";
 
@@ -38,6 +39,8 @@ export default async function AdminDepositsPage({ searchParams }: AdminDepositsP
   const memberNames = new Map(members.map((member) => [member.id, member.full_name]));
   const returnTo = `/admin/deposits${queryString({ month, member: memberId, status })}`;
   const depositAuditLogs = editId ? auditLogs.filter((log) => log.table_name === "deposits" && log.record_id === editId) : [];
+  const editReceiptUrl = editDeposit ? await getReceiptUrl(supabase, editDeposit.receipt_path) : null;
+  const receiptUrls = await getReceiptUrlMap(supabase, deposits);
 
   return (
     <>
@@ -63,6 +66,7 @@ export default async function AdminDepositsPage({ searchParams }: AdminDepositsP
             settings={settings}
             deposit={editDeposit}
             returnTo={returnTo}
+            receiptUrl={editReceiptUrl}
           />
           {depositAuditLogs.length ? (
             <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -113,7 +117,13 @@ export default async function AdminDepositsPage({ searchParams }: AdminDepositsP
         </div>
       </form>
       {deposits.length ? (
-        <AdminDepositsTable deposits={deposits} currency={settings.currency} memberNames={memberNames} returnTo={returnTo} />
+        <AdminDepositsTable
+          deposits={deposits}
+          currency={settings.currency}
+          memberNames={memberNames}
+          returnTo={returnTo}
+          receiptUrls={receiptUrls}
+        />
       ) : (
         <EmptyState icon={PiggyBank} title="No deposits found" description="Try another filter or add a new deposit." />
       )}
@@ -125,12 +135,14 @@ function AdminDepositsTable({
   deposits,
   currency,
   memberNames,
-  returnTo
+  returnTo,
+  receiptUrls
 }: {
   deposits: Deposit[];
   currency: string;
   memberNames: Map<string, string>;
   returnTo: string;
+  receiptUrls: Map<string, string | null>;
 }) {
   return (
     <DataTable>
@@ -144,6 +156,7 @@ function AdminDepositsTable({
             <th className="px-4 py-3">Share price</th>
             <th className="px-4 py-3">Amount</th>
             <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Receipt</th>
             <th className="px-4 py-3">Actions</th>
           </tr>
         </thead>
@@ -158,6 +171,9 @@ function AdminDepositsTable({
               <td className="px-4 py-3 text-slate-600">{formatCurrency(deposit.amount, currency)}</td>
               <td className="px-4 py-3">
                 <StatusBadge status={deposit.status} />
+              </td>
+              <td className="px-4 py-3">
+                <ReceiptLink url={receiptUrls.get(deposit.id) ?? null} />
               </td>
               <td className="px-4 py-3">
                 <div className="flex flex-wrap gap-2">
@@ -180,6 +196,19 @@ function AdminDepositsTable({
         </tbody>
       </table>
     </DataTable>
+  );
+}
+
+function ReceiptLink({ url }: { url: string | null }) {
+  if (!url) {
+    return <span className="text-slate-400">-</span>;
+  }
+
+  return (
+    <a className="btn-secondary min-h-8 px-2 py-1" href={url} target="_blank" rel="noreferrer" title="Open receipt">
+      <ImageIcon className="h-4 w-4" aria-hidden="true" />
+      <ExternalLink className="h-3 w-3" aria-hidden="true" />
+    </a>
   );
 }
 

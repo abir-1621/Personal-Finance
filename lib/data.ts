@@ -149,6 +149,7 @@ export function normalizeDeposit(row: Record<string, unknown>): Deposit {
     amount: toNumber(row.amount),
     status,
     note: row.note ? String(row.note) : null,
+    receipt_path: row.receipt_path ? String(row.receipt_path) : null,
     created_by: row.created_by ? String(row.created_by) : null,
     updated_by: row.updated_by ? String(row.updated_by) : null,
     created_at: String(row.created_at),
