@@ -7,6 +7,7 @@ type DbClient = SupabaseClient;
 
 export type DepositFilters = {
   month?: string;
+  year?: string;
   memberId?: string;
   status?: DepositStatus;
   limit?: number;
@@ -49,6 +50,10 @@ export async function listDeposits(client: DbClient, filters: DepositFilters = {
 
   if (filters.month) {
     query = query.eq("deposit_month", filters.month);
+  }
+
+  if (filters.year) {
+    query = query.gte("deposit_month", `${filters.year}-01`).lte("deposit_month", `${filters.year}-12`);
   }
 
   if (filters.memberId) {

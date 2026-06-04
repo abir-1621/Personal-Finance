@@ -11,7 +11,6 @@ import { formatCurrency, formatDate, formatMonth } from "@/lib/format";
 import { getReceiptUrlMap } from "@/lib/receipts";
 import { requireUser } from "@/lib/auth";
 import type { Deposit } from "@/lib/types";
-import { monthNow } from "@/lib/utils";
 
 type HistoryPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -19,25 +18,25 @@ type HistoryPageProps = {
 
 export default async function DepositHistoryPage({ searchParams }: HistoryPageProps) {
   const params = (await searchParams) ?? {};
-  const month = stringParam(params.month);
+  const year = yearParam(params.year);
   const memberId = stringParam(params.member);
   const { supabase, profile } = await requireUser();
   const settings = await getSettings(supabase);
   const members = profile.role === "ADMIN" ? await listMembers(supabase) : [profile];
   const filters = {
-    month: month || undefined,
+    year,
     memberId: profile.role === "ADMIN" && memberId ? memberId : undefined
   };
   const deposits = await listDeposits(supabase, filters);
   const receiptUrls = await getReceiptUrlMap(supabase, deposits);
   const nameForMember = (id: string) => members.find((member) => member.id === id)?.full_name ?? (id === profile.id ? profile.full_name : "Friend");
-  const returnTo = `/deposits/history${queryString({ month, member: profile.role === "ADMIN" ? memberId : "" })}`;
+  const returnTo = `/deposits/history${queryString({ year, member: profile.role === "ADMIN" ? memberId : "" })}`;
 
   return (
     <>
       <PageHeader
         title="Deposit history"
-        description="Review monthly deposits and their approval status."
+        description="Review monthly deposits for the selected year."
         action={
           <Link href="/deposits/add" className="btn-primary">
             Add deposit
@@ -46,8 +45,8 @@ export default async function DepositHistoryPage({ searchParams }: HistoryPagePr
       />
       <form className="panel mb-5 grid gap-4 p-4 sm:grid-cols-[1fr_1fr_auto]">
         <label className="space-y-2">
-          <span className="form-label">Month</span>
-          <input className="form-input" name="month" type="month" defaultValue={month || monthNow()} />
+          <span className="form-label">Year</span>
+          <input className="form-input" name="year" type="number" min="2000" max="2100" step="1" defaultValue={year} />
         </label>
         {profile.role === "ADMIN" ? (
           <label className="space-y-2">
@@ -200,6 +199,16 @@ function StatusForm({
 
 function stringParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+}
+
+function yearParam(value: string | string[] | undefined) {
+  const raw = stringParam(value);
+
+  if (/^\d{4}$/.test(raw)) {
+    return raw;
+  }
+
+  return String(new Date().getFullYear());
 }
 
 function queryString(params: Record<string, string>) {

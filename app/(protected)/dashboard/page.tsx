@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Banknote, CalendarCheck, CircleDollarSign, Clock3, PiggyBank, Users } from "lucide-react";
+import { Banknote, CalendarCheck, CircleDollarSign, Clock3, Layers3, PiggyBank, Users } from "lucide-react";
 import { DataTable } from "@/components/data-table";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -106,6 +106,7 @@ function AdminDashboard({
 }) {
   const currentMonth = monthNow();
   const activeMembers = members.filter((member) => member.is_active);
+  const totalActiveShares = activeMembers.reduce((total, member) => total + member.assigned_shares, 0);
   const totalSavings = approvedTotal(deposits);
   const monthlyExpected = activeMembers.reduce((total, member) => total + member.assigned_shares * sharePrice, 0);
   const collectedThisMonth = approvedTotal(deposits.filter((deposit) => deposit.deposit_month === currentMonth));
@@ -129,12 +130,13 @@ function AdminDashboard({
           </Link>
         }
       />
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <StatCard title="Group savings" value={formatCurrency(totalSavings, currency)} caption="Approved all time" icon={PiggyBank} tone="teal" />
         <StatCard title="Expected this month" value={formatCurrency(monthlyExpected, currency)} caption={formatMonth(currentMonth)} icon={CalendarCheck} tone="blue" />
         <StatCard title="Collected this month" value={formatCurrency(collectedThisMonth, currency)} caption="Approved deposits" icon={Banknote} tone="teal" />
         <StatCard title="Pending deposits" value={String(pendingDeposits.length)} caption={formatCurrency(pendingAmount, currency)} icon={Clock3} tone="amber" />
         <StatCard title="Active members" value={String(activeMembers.length)} caption={`${members.length} total profiles`} icon={Users} tone="slate" />
+        <StatCard title="Active shares" value={String(totalActiveShares)} caption="Assigned to active members" icon={Layers3} tone="blue" />
       </div>
       <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_1.2fr]">
         <section>
