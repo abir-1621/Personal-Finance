@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <title>Friends &amp; Fund logo</title>
+  <rect x="16" y="16" width="224" height="224" rx="56" fill="#0F766E" />
+  <path d="M72 180V80h96M72 128h72" fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round" stroke-width="24" />
+  <path d="M120 180V96h68M120 144h52" fill="none" stroke="#BFDBFE" stroke-linecap="round" stroke-linejoin="round" stroke-width="24" />
+  <circle cx="182" cy="178" r="34" fill="#FBBF24" stroke="#FEF3C7" stroke-width="12" />
+  <path d="M182 158v40M166 178h32" fill="none" stroke="#854D0E" stroke-linecap="round" stroke-width="8" />
+</svg>

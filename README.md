@@ -1,4 +1,4 @@
-# Friend Savings Tracker
+# Friends & Fund
 
 A private savings tracker for a small group of friends. Admins create users, assign share counts, manage deposits, approve/reject transactions, and review monthly reports. Members can log in, change their initial password, view their assigned shares, and submit monthly deposits whose amounts are calculated server-side.
 

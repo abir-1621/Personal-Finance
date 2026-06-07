@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Friend Savings Tracker",
-  description: "Private monthly savings tracker for friends."
+  title: "Friends & Fund",
+  description: "Private monthly savings and deposit tracker for trusted friend groups."
 };
 
 export default function RootLayout({

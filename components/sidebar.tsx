@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ClipboardList,
-  Gauge,
   History,
   LayoutDashboard,
   ListChecks,
@@ -14,6 +13,7 @@ import {
   ShieldCheck,
   Users
 } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import type { Role } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -43,13 +43,9 @@ export function Sidebar({ role }: SidebarProps) {
   return (
     <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white md:block">
       <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
-        <span className="flex h-9 w-9 items-center justify-center rounded-md bg-teal-600 text-white">
-          <Gauge className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div>
-          <p className="text-sm font-bold text-slate-950">Friend Savings</p>
-          <p className="text-xs text-slate-500">Private tracker</p>
-        </div>
+        <Link href="/dashboard" className="min-w-0">
+          <BrandLogo markClassName="h-10 w-10" />
+        </Link>
       </div>
       <nav className="space-y-1 p-3">
         {links.map((link) => {

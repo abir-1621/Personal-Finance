@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LogOut, Menu, UserCircle } from "lucide-react";
 import { logoutAction } from "@/app/actions/auth";
+import { LogoMark } from "@/components/brand-logo";
 import type { Profile } from "@/lib/types";
 
 type NavbarProps = {
@@ -14,8 +15,9 @@ export function Navbar({ profile }: NavbarProps) {
         <div className="min-w-0">
           <div className="flex items-center gap-2 md:hidden">
             <Menu className="h-5 w-5 text-slate-500" aria-hidden="true" />
-            <Link href="/dashboard" className="text-sm font-bold text-slate-950">
-              Friend Savings
+            <Link href="/dashboard" className="flex min-w-0 items-center gap-2 text-sm font-bold text-slate-950">
+              <LogoMark className="h-8 w-8" decorative />
+              <span className="truncate">Friends &amp; Fund</span>
             </Link>
           </div>
           <p className="hidden text-sm font-medium text-slate-500 md:block">Private savings tracker</p>
