@@ -76,6 +76,7 @@ export default async function DepositHistoryPage({ searchParams }: HistoryPagePr
           currency={settings.currency}
           nameForMember={nameForMember}
           isAdmin={profile.role === "ADMIN"}
+          currentProfileId={profile.id}
           returnTo={returnTo}
           receiptUrls={receiptUrls}
         />
@@ -91,6 +92,7 @@ function DepositsHistoryTable({
   currency,
   nameForMember,
   isAdmin,
+  currentProfileId,
   returnTo,
   receiptUrls
 }: {
@@ -98,6 +100,7 @@ function DepositsHistoryTable({
   currency: string;
   nameForMember: (id: string) => string;
   isAdmin: boolean;
+  currentProfileId: string;
   returnTo: string;
   receiptUrls: Map<string, string | null>;
 }) {
@@ -115,45 +118,60 @@ function DepositsHistoryTable({
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Receipt</th>
             <th className="px-4 py-3">Note</th>
-            {isAdmin ? <th className="px-4 py-3">Actions</th> : null}
+            <th className="px-4 py-3">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {deposits.map((deposit) => (
-            <tr key={deposit.id} className="align-top">
-              <td className="px-4 py-3 text-slate-600">{formatDate(deposit.deposit_date)}</td>
-              <td className="px-4 py-3 text-slate-600">{formatMonth(deposit.deposit_month)}</td>
-              <td className="px-4 py-3 font-medium text-slate-900">{nameForMember(deposit.member_id)}</td>
-              <td className="px-4 py-3 text-slate-600">{deposit.share_count_snapshot}</td>
-              <td className="px-4 py-3 text-slate-600">{formatCurrency(deposit.share_price_snapshot, currency)}</td>
-              <td className="px-4 py-3 text-slate-600">{formatCurrency(deposit.amount, currency)}</td>
-              <td className="px-4 py-3">
-                <StatusBadge status={deposit.status} />
-              </td>
-              <td className="px-4 py-3">
-                <ReceiptLink url={receiptUrls.get(deposit.id) ?? null} />
-              </td>
-              <td className="max-w-xs px-4 py-3 text-slate-600">{deposit.note || "-"}</td>
-              {isAdmin ? (
+          {deposits.map((deposit) => {
+            const canMemberEdit = deposit.member_id === currentProfileId && deposit.status === "PENDING";
+            const canAdminAct = isAdmin && deposit.status !== "APPROVED";
+            const canEdit = canAdminAct || (!isAdmin && canMemberEdit);
+            const editHref = isAdmin ? `/admin/deposits?edit=${deposit.id}` : `/deposits/add?edit=${deposit.id}`;
+
+            return (
+              <tr key={deposit.id} className="align-top">
+                <td className="px-4 py-3 text-slate-600">{formatDate(deposit.deposit_date)}</td>
+                <td className="px-4 py-3 text-slate-600">{formatMonth(deposit.deposit_month)}</td>
+                <td className="px-4 py-3 font-medium text-slate-900">{nameForMember(deposit.member_id)}</td>
+                <td className="px-4 py-3 text-slate-600">{deposit.share_count_snapshot}</td>
+                <td className="px-4 py-3 text-slate-600">{formatCurrency(deposit.share_price_snapshot, currency)}</td>
+                <td className="px-4 py-3 text-slate-600">{formatCurrency(deposit.amount, currency)}</td>
+                <td className="px-4 py-3">
+                  <StatusBadge status={deposit.status} />
+                </td>
+                <td className="px-4 py-3">
+                  <ReceiptLink url={receiptUrls.get(deposit.id) ?? null} />
+                </td>
+                <td className="max-w-xs px-4 py-3 text-slate-600">{deposit.note || "-"}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">
-                    <Link href={`/admin/deposits?edit=${deposit.id}`} className="btn-secondary min-h-8 px-2 py-1" title="Edit">
-                      <Pencil className="h-4 w-4" aria-hidden="true" />
-                    </Link>
-                    <StatusForm id={deposit.id} status="APPROVED" returnTo={returnTo} icon="approve" />
-                    <StatusForm id={deposit.id} status="REJECTED" returnTo={returnTo} icon="reject" />
-                    <ConfirmDialog action={deleteDepositAction} message="Delete this deposit? This keeps an audit log entry.">
-                      <input type="hidden" name="id" value={deposit.id} />
-                      <input type="hidden" name="return_to" value={returnTo} />
-                      <button className="btn-danger min-h-8 px-2 py-1" type="submit" title="Delete">
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </ConfirmDialog>
+                    {canEdit ? (
+                      <Link href={editHref} className="btn-secondary min-h-8 px-2 py-1" title="Edit">
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
+                      </Link>
+                    ) : (
+                      <span className="text-sm text-slate-400">{deposit.status === "APPROVED" ? "Locked" : "-"}</span>
+                    )}
+                    {canAdminAct ? (
+                      <>
+                        <StatusForm id={deposit.id} status="APPROVED" returnTo={returnTo} icon="approve" />
+                        {deposit.status !== "REJECTED" ? (
+                          <StatusForm id={deposit.id} status="REJECTED" returnTo={returnTo} icon="reject" />
+                        ) : null}
+                        <ConfirmDialog action={deleteDepositAction} message="Delete this deposit? This keeps an audit log entry.">
+                          <input type="hidden" name="id" value={deposit.id} />
+                          <input type="hidden" name="return_to" value={returnTo} />
+                          <button className="btn-danger min-h-8 px-2 py-1" type="submit" title="Delete">
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        </ConfirmDialog>
+                      </>
+                    ) : null}
                   </div>
                 </td>
-              ) : null}
-            </tr>
-          ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </DataTable>

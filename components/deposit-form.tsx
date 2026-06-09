@@ -45,6 +45,7 @@ export function DepositForm({ mode, currentProfile, members, settings, deposit, 
   const shareCount = keepStoredSnapshot ? (deposit?.share_count_snapshot ?? 0) : (selectedMember?.assigned_shares ?? 0);
   const sharePrice = keepStoredSnapshot ? (deposit?.share_price_snapshot ?? settings.share_price) : settings.share_price;
   const amount = shareCount * sharePrice;
+  const isMemberEdit = mode === "edit" && currentProfile.role !== "ADMIN" && Boolean(deposit);
 
   useEffect(() => {
     return () => {
@@ -67,7 +68,13 @@ export function DepositForm({ mode, currentProfile, members, settings, deposit, 
     >
       {mode === "edit" && deposit ? <input type="hidden" name="id" value={deposit.id} /> : null}
       <input type="hidden" name="return_to" value={returnTo ?? (mode === "edit" ? "/admin/deposits" : "/deposits/history")} />
-      {currentProfile.role !== "ADMIN" ? <input type="hidden" name="member_id" value={currentProfile.id} /> : null}
+      {currentProfile.role !== "ADMIN" ? <input type="hidden" name="member_id" value={deposit?.member_id ?? currentProfile.id} /> : null}
+      {isMemberEdit && deposit ? (
+        <>
+          <input type="hidden" name="deposit_month" value={deposit.deposit_month} />
+          <input type="hidden" name="status" value={deposit.status} />
+        </>
+      ) : null}
       {state.error ? (
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</div>
       ) : null}
@@ -93,9 +100,10 @@ export function DepositForm({ mode, currentProfile, members, settings, deposit, 
           <span className="form-label">Deposit month</span>
           <input
             className="form-input"
-            name="deposit_month"
+            name={isMemberEdit ? undefined : "deposit_month"}
             type="month"
             defaultValue={deposit?.deposit_month ?? monthNow()}
+            disabled={isMemberEdit}
             required
           />
         </label>
@@ -110,7 +118,7 @@ export function DepositForm({ mode, currentProfile, members, settings, deposit, 
           />
         </label>
       </div>
-      {mode === "edit" ? (
+      {mode === "edit" && currentProfile.role === "ADMIN" ? (
         <label className="block space-y-2">
           <span className="form-label">Status</span>
           <select className="form-input" name="status" defaultValue={deposit?.status ?? "PENDING"}>
@@ -140,7 +148,9 @@ export function DepositForm({ mode, currentProfile, members, settings, deposit, 
         <div className="flex flex-col gap-1">
           <span className="form-label">Receipt image</span>
           <p className="text-sm text-slate-500">
-            Optional. Large images are optimized before upload so they stay readable without being too heavy.
+            {isMemberEdit
+              ? "Add or replace the receipt while this deposit is pending."
+              : "Optional. Large images are optimized before upload so they stay readable without being too heavy."}
           </p>
         </div>
         <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center transition hover:border-teal-300 hover:bg-teal-50">

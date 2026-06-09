@@ -87,6 +87,32 @@ export async function getDepositById(client: DbClient, id: string) {
   return data ? normalizeDeposit(data as Record<string, unknown>) : null;
 }
 
+export async function getDepositForMemberMonth(
+  client: DbClient,
+  memberId: string,
+  month: string,
+  options: { excludeId?: string } = {}
+) {
+  let query = client
+    .from("deposits")
+    .select("*")
+    .eq("member_id", memberId)
+    .eq("deposit_month", month)
+    .limit(1);
+
+  if (options.excludeId) {
+    query = query.neq("id", options.excludeId);
+  }
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ? normalizeDeposit(data as Record<string, unknown>) : null;
+}
+
 export async function listAuditLogs(client: DbClient, limit = 100): Promise<AuditLog[]> {
   const { data, error } = await client
     .from("audit_logs")

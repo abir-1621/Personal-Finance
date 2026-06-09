@@ -11,7 +11,7 @@ import { getDepositById, getSettings, listAuditLogs, listDeposits, listMembers }
 import { formatCurrency, formatDate, formatMonth } from "@/lib/format";
 import { getReceiptUrl, getReceiptUrlMap } from "@/lib/receipts";
 import { requireAdmin } from "@/lib/auth";
-import type { Deposit } from "@/lib/types";
+import type { Deposit, Profile } from "@/lib/types";
 
 type AdminDepositsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -36,6 +36,7 @@ export default async function AdminDepositsPage({ searchParams }: AdminDepositsP
     editId ? listAuditLogs(supabase, 100) : Promise.resolve([])
   ]);
   const activeMembers = members.filter((member) => member.is_active);
+  const editFormMembers = editDeposit ? memberListForEdit(members, activeMembers, editDeposit.member_id) : activeMembers;
   const memberNames = new Map(members.map((member) => [member.id, member.full_name]));
   const returnTo = `/admin/deposits${queryString({ month, member: memberId, status })}`;
   const depositAuditLogs = editId ? auditLogs.filter((log) => log.table_name === "deposits" && log.record_id === editId) : [];
@@ -59,15 +60,22 @@ export default async function AdminDepositsPage({ searchParams }: AdminDepositsP
             <Pencil className="h-5 w-5 text-teal-700" aria-hidden="true" />
             <h2 className="text-lg font-semibold text-slate-950">Edit deposit</h2>
           </div>
-          <DepositForm
-            mode="edit"
-            currentProfile={profile}
-            members={activeMembers.length ? activeMembers : members}
-            settings={settings}
-            deposit={editDeposit}
-            returnTo={returnTo}
-            receiptUrl={editReceiptUrl}
-          />
+          {editDeposit.status === "APPROVED" ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+              <StatusBadge status={editDeposit.status} />
+              <p className="mt-3 text-sm font-medium text-emerald-800">Approved deposits are locked.</p>
+            </div>
+          ) : (
+            <DepositForm
+              mode="edit"
+              currentProfile={profile}
+              members={editFormMembers}
+              settings={settings}
+              deposit={editDeposit}
+              returnTo={returnTo}
+              receiptUrl={editReceiptUrl}
+            />
+          )}
           {depositAuditLogs.length ? (
             <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
               <h3 className="text-sm font-semibold text-slate-900">Audit history</h3>
@@ -161,38 +169,48 @@ function AdminDepositsTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {deposits.map((deposit) => (
-            <tr key={deposit.id}>
-              <td className="px-4 py-3 text-slate-600">{formatDate(deposit.deposit_date)}</td>
-              <td className="px-4 py-3 text-slate-600">{formatMonth(deposit.deposit_month)}</td>
-              <td className="px-4 py-3 font-medium text-slate-900">{memberNames.get(deposit.member_id) ?? "Unknown"}</td>
-              <td className="px-4 py-3 text-slate-600">{deposit.share_count_snapshot}</td>
-              <td className="px-4 py-3 text-slate-600">{formatCurrency(deposit.share_price_snapshot, currency)}</td>
-              <td className="px-4 py-3 text-slate-600">{formatCurrency(deposit.amount, currency)}</td>
-              <td className="px-4 py-3">
-                <StatusBadge status={deposit.status} />
-              </td>
-              <td className="px-4 py-3">
-                <ReceiptLink url={receiptUrls.get(deposit.id) ?? null} />
-              </td>
-              <td className="px-4 py-3">
-                <div className="flex flex-wrap gap-2">
-                  <Link href={`/admin/deposits?edit=${deposit.id}`} className="btn-secondary min-h-8 px-2 py-1" title="Edit">
-                    <Pencil className="h-4 w-4" aria-hidden="true" />
-                  </Link>
-                  <StatusForm id={deposit.id} status="APPROVED" returnTo={returnTo} icon="approve" />
-                  <StatusForm id={deposit.id} status="REJECTED" returnTo={returnTo} icon="reject" />
-                  <ConfirmDialog action={deleteDepositAction} message="Delete this deposit? This keeps an audit log entry.">
-                    <input type="hidden" name="id" value={deposit.id} />
-                    <input type="hidden" name="return_to" value={returnTo} />
-                    <button className="btn-danger min-h-8 px-2 py-1" type="submit" title="Delete">
-                      <Trash2 className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  </ConfirmDialog>
-                </div>
-              </td>
-            </tr>
-          ))}
+          {deposits.map((deposit) => {
+            const canAct = deposit.status !== "APPROVED";
+
+            return (
+              <tr key={deposit.id}>
+                <td className="px-4 py-3 text-slate-600">{formatDate(deposit.deposit_date)}</td>
+                <td className="px-4 py-3 text-slate-600">{formatMonth(deposit.deposit_month)}</td>
+                <td className="px-4 py-3 font-medium text-slate-900">{memberNames.get(deposit.member_id) ?? "Unknown"}</td>
+                <td className="px-4 py-3 text-slate-600">{deposit.share_count_snapshot}</td>
+                <td className="px-4 py-3 text-slate-600">{formatCurrency(deposit.share_price_snapshot, currency)}</td>
+                <td className="px-4 py-3 text-slate-600">{formatCurrency(deposit.amount, currency)}</td>
+                <td className="px-4 py-3">
+                  <StatusBadge status={deposit.status} />
+                </td>
+                <td className="px-4 py-3">
+                  <ReceiptLink url={receiptUrls.get(deposit.id) ?? null} />
+                </td>
+                <td className="px-4 py-3">
+                  {canAct ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Link href={`/admin/deposits?edit=${deposit.id}`} className="btn-secondary min-h-8 px-2 py-1" title="Edit">
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
+                      </Link>
+                      <StatusForm id={deposit.id} status="APPROVED" returnTo={returnTo} icon="approve" />
+                      {deposit.status !== "REJECTED" ? (
+                        <StatusForm id={deposit.id} status="REJECTED" returnTo={returnTo} icon="reject" />
+                      ) : null}
+                      <ConfirmDialog action={deleteDepositAction} message="Delete this deposit? This keeps an audit log entry.">
+                        <input type="hidden" name="id" value={deposit.id} />
+                        <input type="hidden" name="return_to" value={returnTo} />
+                        <button className="btn-danger min-h-8 px-2 py-1" type="submit" title="Delete">
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      </ConfirmDialog>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-slate-400">Locked</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </DataTable>
@@ -249,4 +267,15 @@ function queryString(params: Record<string, string>) {
   });
   const serialized = query.toString();
   return serialized ? `?${serialized}` : "";
+}
+
+function memberListForEdit(members: Profile[], activeMembers: Profile[], memberId: string) {
+  const memberIsActive = activeMembers.some((member) => member.id === memberId);
+
+  if (memberIsActive) {
+    return activeMembers;
+  }
+
+  const editMember = members.find((member) => member.id === memberId);
+  return editMember ? [editMember, ...activeMembers] : activeMembers;
 }

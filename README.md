@@ -94,10 +94,14 @@ The service role key is used only in server actions and scripts. It is not impor
 - Members must change their initial password.
 - Admin assigns and updates member share counts.
 - Members cannot edit share counts.
+- Each member can submit only one deposit per month.
 - Deposit amount is calculated server-side from assigned shares and current share price.
 - Deposits store `share_count_snapshot`, `share_price_snapshot`, and `amount`.
 - Old deposits are not recalculated when settings change.
-- Admin can add, edit, approve, reject, and delete deposits.
+- Members can edit their own pending deposits before approval, including adding a receipt later.
+- Approved deposits are locked from later edits, status changes, or deletion.
+- Admin can add, edit, approve, reject, and delete deposits while they are not approved.
+- Admin can copy or open a WhatsApp reminder message listing members who have not submitted this month's deposit.
 - Audit logs record member, deposit, and settings changes.
 - Optional receipt images are stored in a private Supabase Storage bucket.
 

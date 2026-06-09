@@ -81,9 +81,13 @@ public/
 - There is no public signup. Admins create users.
 - Members must change their initial password before entering the app.
 - Members cannot edit their assigned share count.
+- Each member can have only one deposit record per month.
 - Deposit amount is calculated server-side from assigned shares and current settings.
 - Deposits store share count and share price snapshots; old deposits are not recalculated when settings change.
-- Members submit pending deposits. Admins approve, reject, edit, or delete them.
+- Members submit pending deposits and can edit their own pending deposit before approval, mainly to add or replace a receipt.
+- Approved deposits are locked from later edits, status changes, or deletion.
+- Admins approve, reject, edit, or delete deposits while they are not approved.
+- Admin dashboard can generate/copy a WhatsApp reminder for members who have not submitted this month's deposit; it opens WhatsApp with prefilled text, but the admin still chooses the group and sends manually.
 - Receipt files are private and controlled by Supabase Storage policies.
 - Audit logs record member, deposit, and settings changes.
 

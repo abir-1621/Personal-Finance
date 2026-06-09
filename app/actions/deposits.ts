@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit";
-import { getDepositById, getSettings, normalizeDeposit, normalizeProfile } from "@/lib/data";
+import { getDepositById, getDepositForMemberMonth, getSettings, normalizeDeposit, normalizeProfile } from "@/lib/data";
 import { actionError, textValue } from "@/lib/form";
 import { MAX_RECEIPT_BYTES, RECEIPT_BUCKET } from "@/lib/receipts";
 import { requireAdmin, requireUser } from "@/lib/auth";
@@ -56,6 +56,12 @@ export async function createDepositAction(
       return { error: "Members can only add their own deposits." };
     }
 
+    const existingDeposit = await getDepositForMemberMonth(admin, member.id, values.deposit_month);
+
+    if (existingDeposit) {
+      return { error: duplicateDepositMessage(member.full_name, values.deposit_month) };
+    }
+
     const settings = await getSettings(admin);
     const amount = member.assigned_shares * settings.share_price;
     const depositId = randomUUID();
@@ -82,7 +88,7 @@ export async function createDepositAction(
       if (receiptPath) {
         await deleteReceipt(admin, receiptPath);
       }
-      return { error: error?.message ?? "Unable to create deposit." };
+      return { error: depositWriteError(error, "Unable to create deposit.", member.full_name, values.deposit_month) };
     }
 
     const deposit = normalizeDeposit(data as Record<string, unknown>);
@@ -111,7 +117,7 @@ export async function updateDepositAction(
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const { profile: actor } = await requireAdmin();
+    const { profile: actor } = await requireUser();
     const values = updateDepositSchema.parse({
       id: textValue(formData, "id"),
       member_id: textValue(formData, "member_id"),
@@ -129,9 +135,44 @@ export async function updateDepositAction(
       return { error: "Deposit not found." };
     }
 
-    const member = await loadMember(admin, values.member_id);
+    if (oldDeposit.status === "APPROVED") {
+      return { error: "Approved deposits are locked and cannot be changed." };
+    }
+
+    const isAdmin = actor.role === "ADMIN";
+
+    if (!isAdmin && oldDeposit.member_id !== actor.id) {
+      return { error: "Members can only edit their own deposits." };
+    }
+
+    if (!isAdmin && oldDeposit.status !== "PENDING") {
+      return { error: "Only pending deposits can be edited before approval." };
+    }
+
+    const memberId = isAdmin ? values.member_id : oldDeposit.member_id;
+    const depositMonth = isAdmin ? values.deposit_month : oldDeposit.deposit_month;
+    const nextStatus = isAdmin ? values.status : oldDeposit.status;
+    const member = await loadMember(admin, memberId);
+
+    if (!member.is_active) {
+      return { error: "This member is inactive." };
+    }
+
     const settings = await getSettings(admin);
-    const memberChanged = values.member_id !== oldDeposit.member_id;
+    const memberChanged = member.id !== oldDeposit.member_id;
+
+    if (memberChanged && member.assigned_shares <= 0) {
+      return { error: "This member needs assigned shares before a deposit can be moved to them." };
+    }
+
+    const duplicateDeposit = await getDepositForMemberMonth(admin, member.id, depositMonth, {
+      excludeId: oldDeposit.id
+    });
+
+    if (duplicateDeposit) {
+      return { error: duplicateDepositMessage(member.full_name, depositMonth) };
+    }
+
     const shareCountSnapshot = memberChanged ? member.assigned_shares : oldDeposit.share_count_snapshot;
     const sharePriceSnapshot = memberChanged ? settings.share_price : oldDeposit.share_price_snapshot;
     const amount = shareCountSnapshot * sharePriceSnapshot;
@@ -142,12 +183,12 @@ export async function updateDepositAction(
 
     const updatePayload = {
       member_id: member.id,
-      deposit_month: values.deposit_month,
+      deposit_month: depositMonth,
       deposit_date: values.deposit_date,
       share_count_snapshot: shareCountSnapshot,
       share_price_snapshot: sharePriceSnapshot,
       amount,
-      status: values.status,
+      status: nextStatus,
       note: values.note ?? null,
       receipt_path: receiptPath,
       updated_by: actor.id,
@@ -165,7 +206,7 @@ export async function updateDepositAction(
       if (newReceiptPath) {
         await deleteReceipt(admin, newReceiptPath);
       }
-      return { error: error?.message ?? "Unable to update deposit." };
+      return { error: depositWriteError(error, "Unable to update deposit.", member.full_name, depositMonth) };
     }
 
     const updatedDeposit = normalizeDeposit(data as Record<string, unknown>);
@@ -187,7 +228,7 @@ export async function updateDepositAction(
     revalidatePath("/deposits/history");
     revalidatePath("/admin/deposits");
     revalidatePath("/admin/monthly-report");
-    redirect(values.return_to ?? "/admin/deposits");
+    redirect(values.return_to ?? (isAdmin ? "/admin/deposits" : "/deposits/history"));
   } catch (error) {
     return { error: actionError(error) };
   }
@@ -203,6 +244,10 @@ export async function setDepositStatusAction(formData: FormData) {
     const oldDeposit = await getDepositById(admin, id);
 
     if (!oldDeposit) {
+      redirect(returnTo);
+    }
+
+    if (oldDeposit.status === "APPROVED") {
       redirect(returnTo);
     }
 
@@ -254,6 +299,10 @@ export async function deleteDepositAction(formData: FormData) {
       redirect(returnTo);
     }
 
+    if (oldDeposit.status === "APPROVED") {
+      redirect(returnTo);
+    }
+
     const { error } = await admin.from("deposits").delete().eq("id", id);
 
     if (error) {
@@ -300,6 +349,27 @@ function statusValue(formData: FormData): DepositStatus {
   }
 
   return "PENDING";
+}
+
+function duplicateDepositMessage(memberName: string, month: string) {
+  return `${memberName} already has a deposit for ${month}. Edit the existing pending deposit instead.`;
+}
+
+function depositWriteError(
+  error: { code?: string; message?: string } | null,
+  fallback: string,
+  memberName: string,
+  month: string
+) {
+  if (isUniqueViolation(error)) {
+    return duplicateDepositMessage(memberName, month);
+  }
+
+  return error?.message ?? fallback;
+}
+
+function isUniqueViolation(error: { code?: string; message?: string } | null) {
+  return error?.code === "23505" || error?.message?.includes("deposits_member_month_unique_idx") === true;
 }
 
 function receiptFileValue(formData: FormData) {

@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { StatusBadge } from "@/components/status-badge";
+import { WhatsAppReminder } from "@/components/whatsapp-reminder";
 import {
   approvedTotal,
   getSettings,
@@ -49,17 +50,27 @@ function MemberDashboard({
   const ownTotal = approvedTotal(ownDeposits);
   const paidHistoricalShares = approvedOwnDeposits.reduce((total, deposit) => total + deposit.share_count_snapshot, 0);
   const expected = profile.assigned_shares * sharePrice;
+  const action =
+    currentMonthDeposit?.status === "PENDING" ? (
+      <Link href={`/deposits/add?edit=${currentMonthDeposit.id}`} className="btn-primary">
+        Edit current deposit
+      </Link>
+    ) : currentMonthDeposit ? (
+      <Link href="/deposits/history" className="btn-secondary">
+        View history
+      </Link>
+    ) : (
+      <Link href="/deposits/add" className="btn-primary">
+        Add deposit
+      </Link>
+    );
 
   return (
     <>
       <PageHeader
         title="Dashboard"
         description="Your shares, deposits, and the group's accumulated savings."
-        action={
-          <Link href="/deposits/add" className="btn-primary">
-            Add deposit
-          </Link>
-        }
+        action={action}
       />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard title="Assigned shares" value={String(profile.assigned_shares)} caption="Managed by admin" icon={Users} tone="blue" />
@@ -106,13 +117,22 @@ function AdminDashboard({
 }) {
   const currentMonth = monthNow();
   const activeMembers = members.filter((member) => member.is_active);
+  const expectedMembers = activeMembers.filter((member) => member.assigned_shares > 0);
   const totalActiveShares = activeMembers.reduce((total, member) => total + member.assigned_shares, 0);
   const totalSavings = approvedTotal(deposits);
-  const monthlyExpected = activeMembers.reduce((total, member) => total + member.assigned_shares * sharePrice, 0);
-  const collectedThisMonth = approvedTotal(deposits.filter((deposit) => deposit.deposit_month === currentMonth));
+  const monthlyExpected = expectedMembers.reduce((total, member) => total + member.assigned_shares * sharePrice, 0);
+  const currentMonthDeposits = deposits.filter((deposit) => deposit.deposit_month === currentMonth);
+  const collectedThisMonth = approvedTotal(currentMonthDeposits);
   const pendingDeposits = deposits.filter((deposit) => deposit.status === "PENDING");
   const pendingAmount = pendingTotal(deposits);
   const memberNames = new Map(members.map((member) => [member.id, member.full_name]));
+  const submittedThisMonthMemberIds = new Set(currentMonthDeposits.map((deposit) => deposit.member_id));
+  const remainingMembers = expectedMembers.filter((member) => !submittedThisMonthMemberIds.has(member.id));
+  const remainingReminderMembers = remainingMembers.map((member) => ({
+    name: member.full_name,
+    amount: formatCurrency(member.assigned_shares * sharePrice, currency)
+  }));
+  const currentMonthLabel = formatMonth(currentMonth);
   const summaries = recentMonths(6).map((month) => ({
     month,
     collected: approvedTotal(deposits.filter((deposit) => deposit.deposit_month === month)),
@@ -130,11 +150,12 @@ function AdminDashboard({
           </Link>
         }
       />
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-7">
         <StatCard title="Group savings" value={formatCurrency(totalSavings, currency)} caption="Approved all time" icon={PiggyBank} tone="teal" />
-        <StatCard title="Expected this month" value={formatCurrency(monthlyExpected, currency)} caption={formatMonth(currentMonth)} icon={CalendarCheck} tone="blue" />
+        <StatCard title="Expected this month" value={formatCurrency(monthlyExpected, currency)} caption={currentMonthLabel} icon={CalendarCheck} tone="blue" />
         <StatCard title="Collected this month" value={formatCurrency(collectedThisMonth, currency)} caption="Approved deposits" icon={Banknote} tone="teal" />
         <StatCard title="Pending deposits" value={String(pendingDeposits.length)} caption={formatCurrency(pendingAmount, currency)} icon={Clock3} tone="amber" />
+        <StatCard title="Remaining submissions" value={String(remainingMembers.length)} caption={currentMonthLabel} icon={Users} tone={remainingMembers.length ? "amber" : "teal"} />
         <StatCard title="Active members" value={String(activeMembers.length)} caption={`${members.length} total profiles`} icon={Users} tone="slate" />
         <StatCard title="Active shares" value={String(totalActiveShares)} caption="Assigned to active members" icon={Layers3} tone="blue" />
       </div>
@@ -192,6 +213,22 @@ function AdminDashboard({
         </section>
       </div>
       <section className="mt-8">
+        <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-slate-950">Remaining this month</h2>
+            <Link href={`/admin/deposits?month=${currentMonth}`} className="text-sm font-semibold text-teal-700 hover:text-teal-900">
+              View month
+            </Link>
+          </div>
+          <WhatsAppReminder members={remainingReminderMembers} monthLabel={currentMonthLabel} />
+        </div>
+        {remainingMembers.length ? (
+          <RemainingMembersTable members={remainingMembers} currency={currency} sharePrice={sharePrice} />
+        ) : (
+          <EmptyState icon={CalendarCheck} title="All expected members submitted" description="Every active member with assigned shares has a deposit record for this month." />
+        )}
+      </section>
+      <section className="mt-8">
         <h2 className="mb-3 text-lg font-semibold text-slate-950">Recent deposits</h2>
         {deposits.length ? (
           <DepositTable deposits={deposits.slice(0, 8)} currency={currency} nameForMember={(id) => memberNames.get(id) ?? "Unknown"} />
@@ -200,6 +237,41 @@ function AdminDashboard({
         )}
       </section>
     </>
+  );
+}
+
+function RemainingMembersTable({
+  members,
+  currency,
+  sharePrice
+}: {
+  members: Profile[];
+  currency: string;
+  sharePrice: number;
+}) {
+  return (
+    <DataTable>
+      <table className="min-w-full divide-y divide-slate-200 text-sm">
+        <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-normal text-slate-500">
+          <tr>
+            <th className="px-4 py-3">Member</th>
+            <th className="px-4 py-3">Email</th>
+            <th className="px-4 py-3">Shares</th>
+            <th className="px-4 py-3">Expected amount</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {members.map((member) => (
+            <tr key={member.id}>
+              <td className="px-4 py-3 font-medium text-slate-900">{member.full_name}</td>
+              <td className="px-4 py-3 text-slate-600">{member.email}</td>
+              <td className="px-4 py-3 text-slate-600">{member.assigned_shares}</td>
+              <td className="px-4 py-3 text-slate-600">{formatCurrency(member.assigned_shares * sharePrice, currency)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </DataTable>
   );
 }
 
