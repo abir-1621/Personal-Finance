@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Banknote, CalendarCheck, CircleDollarSign, Clock3, Layers3, PiggyBank, Users } from "lucide-react";
+import { Banknote, CalendarCheck, CircleDollarSign, Clock3, PiggyBank, Users } from "lucide-react";
 import { DataTable } from "@/components/data-table";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -150,14 +150,41 @@ function AdminDashboard({
           </Link>
         }
       />
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-7">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard title="Group savings" value={formatCurrency(totalSavings, currency)} caption="Approved all time" icon={PiggyBank} tone="teal" />
         <StatCard title="Expected this month" value={formatCurrency(monthlyExpected, currency)} caption={currentMonthLabel} icon={CalendarCheck} tone="blue" />
         <StatCard title="Collected this month" value={formatCurrency(collectedThisMonth, currency)} caption="Approved deposits" icon={Banknote} tone="teal" />
-        <StatCard title="Pending deposits" value={String(pendingDeposits.length)} caption={formatCurrency(pendingAmount, currency)} icon={Clock3} tone="amber" />
-        <StatCard title="Remaining submissions" value={String(remainingMembers.length)} caption={currentMonthLabel} icon={Users} tone={remainingMembers.length ? "amber" : "teal"} />
-        <StatCard title="Active members" value={String(activeMembers.length)} caption={`${members.length} total profiles`} icon={Users} tone="slate" />
-        <StatCard title="Active shares" value={String(totalActiveShares)} caption="Assigned to active members" icon={Layers3} tone="blue" />
+      </div>
+      <div className="mt-8 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <section>
+          <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-slate-950">Remaining this month</h2>
+            <Link href={`/admin/deposits?month=${currentMonth}`} className="text-sm font-semibold text-teal-700 hover:text-teal-900">
+              View month
+            </Link>
+          </div>
+          <WhatsAppReminder members={remainingReminderMembers} monthLabel={currentMonthLabel} />
+        </div>
+        {remainingMembers.length ? (
+          <RemainingMembersTable members={remainingMembers} currency={currency} sharePrice={sharePrice} />
+        ) : (
+          <EmptyState icon={CalendarCheck} title="All expected members submitted" description="Every active member with assigned shares has a deposit record for this month." />
+        )}
+        </section>
+        <section>
+          <h2 className="mb-3 text-lg font-semibold text-slate-950">Group status</h2>
+          <GroupStatusTable
+            pendingDepositCount={pendingDeposits.length}
+            pendingAmount={pendingAmount}
+            remainingCount={remainingMembers.length}
+            activeMemberCount={activeMembers.length}
+            totalMemberCount={members.length}
+            totalActiveShares={totalActiveShares}
+            currentMonthLabel={currentMonthLabel}
+            currency={currency}
+          />
+        </section>
       </div>
       <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_1.2fr]">
         <section>
@@ -213,22 +240,6 @@ function AdminDashboard({
         </section>
       </div>
       <section className="mt-8">
-        <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-slate-950">Remaining this month</h2>
-            <Link href={`/admin/deposits?month=${currentMonth}`} className="text-sm font-semibold text-teal-700 hover:text-teal-900">
-              View month
-            </Link>
-          </div>
-          <WhatsAppReminder members={remainingReminderMembers} monthLabel={currentMonthLabel} />
-        </div>
-        {remainingMembers.length ? (
-          <RemainingMembersTable members={remainingMembers} currency={currency} sharePrice={sharePrice} />
-        ) : (
-          <EmptyState icon={CalendarCheck} title="All expected members submitted" description="Every active member with assigned shares has a deposit record for this month." />
-        )}
-      </section>
-      <section className="mt-8">
         <h2 className="mb-3 text-lg font-semibold text-slate-950">Recent deposits</h2>
         {deposits.length ? (
           <DepositTable deposits={deposits.slice(0, 8)} currency={currency} nameForMember={(id) => memberNames.get(id) ?? "Unknown"} />
@@ -237,6 +248,72 @@ function AdminDashboard({
         )}
       </section>
     </>
+  );
+}
+
+function GroupStatusTable({
+  pendingDepositCount,
+  pendingAmount,
+  remainingCount,
+  activeMemberCount,
+  totalMemberCount,
+  totalActiveShares,
+  currentMonthLabel,
+  currency
+}: {
+  pendingDepositCount: number;
+  pendingAmount: number;
+  remainingCount: number;
+  activeMemberCount: number;
+  totalMemberCount: number;
+  totalActiveShares: number;
+  currentMonthLabel: string;
+  currency: string;
+}) {
+  const rows = [
+    {
+      label: "Pending deposits",
+      value: String(pendingDepositCount),
+      detail: formatCurrency(pendingAmount, currency)
+    },
+    {
+      label: "Remaining submissions",
+      value: String(remainingCount),
+      detail: currentMonthLabel
+    },
+    {
+      label: "Active members",
+      value: String(activeMemberCount),
+      detail: `${totalMemberCount} total profiles`
+    },
+    {
+      label: "Active shares",
+      value: String(totalActiveShares),
+      detail: "Assigned to active members"
+    }
+  ];
+
+  return (
+    <DataTable>
+      <table className="min-w-full divide-y divide-slate-200 text-sm">
+        <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-normal text-slate-500">
+          <tr>
+            <th className="px-4 py-3">Metric</th>
+            <th className="px-4 py-3">Value</th>
+            <th className="px-4 py-3">Info</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((row) => (
+            <tr key={row.label}>
+              <td className="px-4 py-3 font-medium text-slate-900">{row.label}</td>
+              <td className="px-4 py-3 text-lg font-semibold text-slate-950">{row.value}</td>
+              <td className="px-4 py-3 text-slate-600">{row.detail}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </DataTable>
   );
 }
 

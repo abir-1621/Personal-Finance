@@ -98,6 +98,7 @@ public/
 - Favicon: `app/icon.svg`
 - Exportable logo asset: `public/friends-fund-logo.svg`
 - Palette in use: teal savings base, blue trust accent, gold fund/coin accent
+- Authenticated shell uses a desktop sidebar edge toggle and a client route-progress bar during internal navigation.
 
 ## Files Usually Worth Opening First
 
