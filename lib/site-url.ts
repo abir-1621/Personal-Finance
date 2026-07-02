@@ -34,7 +34,7 @@ export async function getSiteUrl() {
 }
 
 export function passwordResetRedirectUrl(siteUrl: string) {
-  return `${siteUrl}/auth/callback?next=/reset-password`;
+  return `${siteUrl}/auth/confirm`;
 }
 
 function normalizeUrl(value: string | undefined) {

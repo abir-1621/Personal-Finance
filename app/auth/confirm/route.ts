@@ -1,14 +1,33 @@
+import { type EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+
+const DEFAULT_NEXT = "/reset-password";
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const next = sanitizeNextPath(requestUrl.searchParams.get("next"));
+  const tokenHash = requestUrl.searchParams.get("token_hash");
+  const type = requestUrl.searchParams.get("type") as EmailOtpType | null;
+  const next = sanitizeNextPath(requestUrl.searchParams.get("next")) ?? DEFAULT_NEXT;
   const authError = requestUrl.searchParams.get("error_code") ?? requestUrl.searchParams.get("error");
 
   if (authError) {
-    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(authError)}`, requestUrl.origin));
+    return loginErrorRedirect(requestUrl, authError);
+  }
+
+  if (tokenHash && type) {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type
+    });
+
+    if (!error) {
+      return NextResponse.redirect(new URL(next, requestUrl.origin));
+    }
+
+    return loginErrorRedirect(requestUrl, authErrorCode(error.message));
   }
 
   if (code) {
@@ -18,21 +37,35 @@ export async function GET(request: NextRequest) {
     if (!error) {
       return NextResponse.redirect(new URL(next, requestUrl.origin));
     }
+
+    return loginErrorRedirect(requestUrl, authErrorCode(error.message));
   }
 
-  if (next === "/reset-password") {
+  if (next === DEFAULT_NEXT) {
     return hashRecoveryRedirect(next);
   }
 
-  return NextResponse.redirect(new URL("/login?error=reset-link", requestUrl.origin));
+  return loginErrorRedirect(requestUrl, "reset-link");
 }
 
 function sanitizeNextPath(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/reset-password";
+  if (!value) {
+    return null;
+  }
+
+  if (!value.startsWith("/") || value.startsWith("//")) {
+    return null;
   }
 
   return value;
+}
+
+function loginErrorRedirect(requestUrl: URL, error: string) {
+  return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error)}`, requestUrl.origin));
+}
+
+function authErrorCode(message: string) {
+  return message.toLowerCase().includes("expired") ? "otp_expired" : "reset-link";
 }
 
 function hashRecoveryRedirect(next: string) {
