@@ -1,10 +1,11 @@
-import { ChangePasswordForm } from "@/app/change-password/change-password-form";
-import { requireUser } from "@/lib/auth";
+import { ResetPasswordClient } from "@/app/reset-password/reset-password-client";
+import { getCurrentProfile } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function ResetPasswordPage() {
-  await requireUser({ allowPasswordChange: true });
+  const { profile } = await getCurrentProfile();
+  const canReset = Boolean(profile?.is_active);
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-10">
@@ -17,7 +18,7 @@ export default async function ResetPasswordPage() {
           <p className="mt-2 text-sm text-slate-500">Choose a new password for your savings tracker account.</p>
         </div>
         <div className="panel p-6">
-          <ChangePasswordForm />
+          <ResetPasswordClient canReset={canReset} />
         </div>
       </section>
     </main>
