@@ -7,6 +7,7 @@ import { passwordResetErrorMessage } from "@/lib/password-reset-errors";
 import { getSiteUrl, passwordResetRedirectUrl } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
+import { createPublicAuthClient } from "@/lib/supabase/public-auth";
 import type { ActionState, Profile } from "@/lib/types";
 
 const loginSchema = z.object({
@@ -128,7 +129,7 @@ export async function forgotPasswordAction(
     const values = forgotPasswordSchema.parse({
       email: textValue(formData, "email").toLowerCase()
     });
-    const supabase = await createClient();
+    const supabase = createPublicAuthClient();
     const redirectTo = passwordResetRedirectUrl(await getSiteUrl());
     const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
       redirectTo

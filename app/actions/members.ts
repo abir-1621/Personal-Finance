@@ -9,6 +9,7 @@ import { passwordResetErrorMessage } from "@/lib/password-reset-errors";
 import { getSiteUrl, passwordResetRedirectUrl } from "@/lib/site-url";
 import { requireAdmin } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
+import { createPublicAuthClient } from "@/lib/supabase/public-auth";
 import type { ActionState, Role } from "@/lib/types";
 
 const memberBaseSchema = z.object({
@@ -180,7 +181,7 @@ export async function sendMemberPasswordResetAction(
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const { supabase, profile: actor } = await requireAdmin();
+    const { profile: actor } = await requireAdmin();
     const values = resetPasswordSchema.parse({
       id: textValue(formData, "id")
     });
@@ -200,6 +201,7 @@ export async function sendMemberPasswordResetAction(
     }
 
     const redirectTo = passwordResetRedirectUrl(await getSiteUrl());
+    const supabase = createPublicAuthClient();
     const { error } = await supabase.auth.resetPasswordForEmail(member.email, {
       redirectTo
     });
