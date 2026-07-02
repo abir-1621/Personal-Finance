@@ -1,11 +1,11 @@
 "use server";
 
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit";
 import { normalizeProfile } from "@/lib/data";
 import { actionError, booleanValue, numberValue, textValue } from "@/lib/form";
+import { getSiteUrl, passwordResetRedirectUrl } from "@/lib/site-url";
 import { requireAdmin } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import type { ActionState, Role } from "@/lib/types";
@@ -199,7 +199,7 @@ export async function sendMemberPasswordResetAction(
     }
 
     const { error } = await supabase.auth.resetPasswordForEmail(member.email, {
-      redirectTo: `${await getOrigin()}/auth/callback?next=/reset-password`
+      redirectTo: passwordResetRedirectUrl(await getSiteUrl())
     });
 
     if (error) {
@@ -227,17 +227,4 @@ export async function sendMemberPasswordResetAction(
 
 function roleValue(formData: FormData): Role {
   return textValue(formData, "role") === "ADMIN" ? "ADMIN" : "MEMBER";
-}
-
-async function getOrigin() {
-  const headerStore = await headers();
-  const forwardedHost = headerStore.get("x-forwarded-host");
-  const forwardedProto = headerStore.get("x-forwarded-proto");
-  const host = forwardedHost ?? headerStore.get("host");
-
-  if (host) {
-    return `${forwardedProto ?? "https"}://${host}`;
-  }
-
-  return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 }

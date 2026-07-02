@@ -1,9 +1,9 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { actionError, textValue } from "@/lib/form";
+import { getSiteUrl, passwordResetRedirectUrl } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import type { ActionState, Profile } from "@/lib/types";
@@ -129,7 +129,7 @@ export async function forgotPasswordAction(
     });
     const supabase = await createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
-      redirectTo: `${await getOrigin()}/auth/callback?next=/reset-password`
+      redirectTo: passwordResetRedirectUrl(await getSiteUrl())
     });
 
     if (error) {
@@ -148,17 +148,4 @@ export async function logoutAction() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/login");
-}
-
-async function getOrigin() {
-  const headerStore = await headers();
-  const forwardedHost = headerStore.get("x-forwarded-host");
-  const forwardedProto = headerStore.get("x-forwarded-proto");
-  const host = forwardedHost ?? headerStore.get("host");
-
-  if (host) {
-    return `${forwardedProto ?? "https"}://${host}`;
-  }
-
-  return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 }

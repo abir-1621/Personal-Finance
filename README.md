@@ -39,9 +39,19 @@ cp .env.example .env.local
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_SITE_URL=
 ```
 
 Only the two `NEXT_PUBLIC_` values are safe for browser use. Never expose `SUPABASE_SERVICE_ROLE_KEY` in client code.
+
+Set `NEXT_PUBLIC_SITE_URL` to the deployed site URL, for example `https://personal-finance-tau-five.vercel.app`. Password reset emails use this value so links do not point to `localhost`.
+
+In Supabase Auth URL Configuration, add these URLs:
+
+```text
+https://personal-finance-tau-five.vercel.app
+https://personal-finance-tau-five.vercel.app/auth/callback
+```
 
 ## Create The First Admin
 

@@ -5,8 +5,14 @@ import { getCurrentProfile } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
+type LoginPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
   const { profile } = await getCurrentProfile();
+  const params = (await searchParams) ?? {};
+  const error = stringParam(params.error);
 
   if (profile) {
     redirect(profile.must_change_password ? "/change-password" : "/dashboard");
@@ -21,9 +27,23 @@ export default async function LoginPage() {
           <p className="mt-2 text-sm text-slate-500">Sign in with the account created by your admin.</p>
         </div>
         <div className="panel p-6">
+          {error ? <ResetLinkError error={error} /> : null}
           <LoginForm />
         </div>
       </section>
     </main>
   );
+}
+
+function ResetLinkError({ error }: { error: string }) {
+  const message =
+    error === "otp_expired" || error === "reset-link"
+      ? "That password reset link is invalid or has expired. Request a fresh reset link and use the newest email."
+      : "The sign-in link could not be used. Please request a fresh password reset link.";
+
+  return <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{message}</div>;
+}
+
+function stringParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
