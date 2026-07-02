@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { actionError, textValue } from "@/lib/form";
@@ -10,6 +11,10 @@ import type { ActionState, Profile } from "@/lib/types";
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address."),
   password: z.string().min(1, "Password is required.")
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email("Enter a valid email address.")
 });
 
 const passwordSchema = z
@@ -114,8 +119,46 @@ export async function changePasswordAction(
   }
 }
 
+export async function forgotPasswordAction(
+  _previousState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    const values = forgotPasswordSchema.parse({
+      email: textValue(formData, "email").toLowerCase()
+    });
+    const supabase = await createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
+      redirectTo: `${await getOrigin()}/auth/callback?next=/reset-password`
+    });
+
+    if (error) {
+      return { error: "Unable to send reset email right now. Please try again." };
+    }
+
+    return {
+      success: "If this email belongs to an active account, a reset link has been sent."
+    };
+  } catch (error) {
+    return { error: actionError(error) };
+  }
+}
+
 export async function logoutAction() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/login");
+}
+
+async function getOrigin() {
+  const headerStore = await headers();
+  const forwardedHost = headerStore.get("x-forwarded-host");
+  const forwardedProto = headerStore.get("x-forwarded-proto");
+  const host = forwardedHost ?? headerStore.get("host");
+
+  if (host) {
+    return `${forwardedProto ?? "https"}://${host}`;
+  }
+
+  return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 }

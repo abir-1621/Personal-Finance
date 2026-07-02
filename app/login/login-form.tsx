@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { LockKeyhole, Mail } from "lucide-react";
 import { loginAction } from "@/app/actions/auth";
@@ -36,6 +37,11 @@ export function LoginForm() {
       <SubmitButton className="w-full" pendingLabel="Signing in">
         Sign in
       </SubmitButton>
+      <div className="text-center">
+        <Link href="/forgot-password" className="text-sm font-semibold text-teal-700 hover:text-teal-900">
+          Forgot password?
+        </Link>
+      </div>
     </form>
   );
 }

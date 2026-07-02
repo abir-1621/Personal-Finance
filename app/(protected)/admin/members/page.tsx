@@ -3,6 +3,7 @@ import { DataTable } from "@/components/data-table";
 import { EmptyState } from "@/components/empty-state";
 import { MemberForm } from "@/components/member-form";
 import { PageHeader } from "@/components/page-header";
+import { PasswordResetButton } from "@/components/password-reset-button";
 import { approvedTotal, expectedMonthlyDeposit, getSettings, listDeposits, listMembers } from "@/lib/data";
 import { formatCurrency } from "@/lib/format";
 import { requireAdmin } from "@/lib/auth";
@@ -47,8 +48,9 @@ export default async function AdminMembersPage() {
                     <td className="px-4 py-3">
                       <details>
                         <summary className="cursor-pointer font-medium text-slate-900">{member.full_name}</summary>
-                        <div className="mt-4 min-w-[320px] rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <div className="mt-4 grid min-w-[320px] gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 xl:min-w-[520px]">
                           <MemberForm mode="edit" member={member} settings={settings} />
+                          <PasswordResetButton member={member} />
                         </div>
                       </details>
                     </td>

@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit";
@@ -22,6 +23,10 @@ const createMemberSchema = memberBaseSchema.extend({
 });
 
 const updateMemberSchema = memberBaseSchema.extend({
+  id: z.string().uuid("Missing member id.")
+});
+
+const resetPasswordSchema = z.object({
   id: z.string().uuid("Missing member id.")
 });
 
@@ -169,6 +174,70 @@ export async function updateMemberAction(
   }
 }
 
+export async function sendMemberPasswordResetAction(
+  _previousState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    const { supabase, profile: actor } = await requireAdmin();
+    const values = resetPasswordSchema.parse({
+      id: textValue(formData, "id")
+    });
+    const admin = createServiceRoleClient();
+    const { data: member, error: memberError } = await admin
+      .from("profiles")
+      .select("id,email,full_name,is_active")
+      .eq("id", values.id)
+      .maybeSingle();
+
+    if (memberError || !member) {
+      return { error: memberError?.message ?? "Member not found." };
+    }
+
+    if (!member.is_active) {
+      return { error: "Activate this member before sending a password reset email." };
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(member.email, {
+      redirectTo: `${await getOrigin()}/auth/callback?next=/reset-password`
+    });
+
+    if (error) {
+      return { error: "Unable to send reset email right now. Please try again." };
+    }
+
+    await writeAuditLog({
+      action: "SEND_PASSWORD_RESET",
+      tableName: "profiles",
+      recordId: member.id,
+      oldValue: null,
+      newValue: {
+        email: member.email,
+        full_name: member.full_name,
+        reset_email_sent: true
+      },
+      performedBy: actor.id
+    });
+
+    return { success: `Password reset email sent to ${member.email}.` };
+  } catch (error) {
+    return { error: actionError(error) };
+  }
+}
+
 function roleValue(formData: FormData): Role {
   return textValue(formData, "role") === "ADMIN" ? "ADMIN" : "MEMBER";
+}
+
+async function getOrigin() {
+  const headerStore = await headers();
+  const forwardedHost = headerStore.get("x-forwarded-host");
+  const forwardedProto = headerStore.get("x-forwarded-proto");
+  const host = forwardedHost ?? headerStore.get("host");
+
+  if (host) {
+    return `${forwardedProto ?? "https"}://${host}`;
+  }
+
+  return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 }
