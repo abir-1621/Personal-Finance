@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { actionError, textValue } from "@/lib/form";
+import { passwordResetErrorMessage } from "@/lib/password-reset-errors";
 import { getSiteUrl, passwordResetRedirectUrl } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
@@ -128,12 +129,13 @@ export async function forgotPasswordAction(
       email: textValue(formData, "email").toLowerCase()
     });
     const supabase = await createClient();
+    const redirectTo = passwordResetRedirectUrl(await getSiteUrl());
     const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
-      redirectTo: passwordResetRedirectUrl(await getSiteUrl())
+      redirectTo
     });
 
     if (error) {
-      return { error: "Unable to send reset email right now. Please try again." };
+      return { error: passwordResetErrorMessage(error, redirectTo) };
     }
 
     return {

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit";
 import { normalizeProfile } from "@/lib/data";
 import { actionError, booleanValue, numberValue, textValue } from "@/lib/form";
+import { passwordResetErrorMessage } from "@/lib/password-reset-errors";
 import { getSiteUrl, passwordResetRedirectUrl } from "@/lib/site-url";
 import { requireAdmin } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
@@ -198,12 +199,13 @@ export async function sendMemberPasswordResetAction(
       return { error: "Activate this member before sending a password reset email." };
     }
 
+    const redirectTo = passwordResetRedirectUrl(await getSiteUrl());
     const { error } = await supabase.auth.resetPasswordForEmail(member.email, {
-      redirectTo: passwordResetRedirectUrl(await getSiteUrl())
+      redirectTo
     });
 
     if (error) {
-      return { error: "Unable to send reset email right now. Please try again." };
+      return { error: passwordResetErrorMessage(error, redirectTo) };
     }
 
     await writeAuditLog({
